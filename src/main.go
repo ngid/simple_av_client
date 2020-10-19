@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/mjproto/simple_av"
@@ -45,28 +46,29 @@ func ComposeMsg(msg proto.Message) (data []byte) {
 	buf.Write(pData)
 	buf.WriteByte(0x3)
 
-	fmt.Println(len(pData))
+	//fmt.Println(len(pData))
 
 	data = buf.Bytes()
 	return
 }
 
-func JoinRoom(conn net.Conn) {
-	msg := &simple_msg.HeadReq{
+func JoinRoom(conn net.Conn, uid int64, roomId int64) {
+	headReq := &simple_msg.HeadReq{
 		Cmd:    int32(simple_av.BIG_CMD_SIMPLE_AV),
 		Subcmd: int32(simple_av.SUB_CMD_JoinRoom),
 		Seq:    1,
 	}
-	req := &simple_av.JoinRoomReq{
-		RoomId: 1000,
-		Uid:    252238532,
+	bodyReq := &simple_av.JoinRoomReq{
+		RoomId: roomId,
+		Uid:    uid,
 	}
 	var err error
-	msg.Ex, err = proto.Marshal(req)
+	headReq.Ex, err = proto.Marshal(bodyReq)
 	if err != nil {
 		return
 	}
-	pData := ComposeMsg(msg)
+	fmt.Println(headReq, bodyReq)
+	pData := ComposeMsg(headReq)
 	conn.Write(pData)
 }
 
@@ -86,15 +88,15 @@ func OnReceive(conn net.Conn) {
 	}
 }
 
-func Upload(conn net.Conn) {
+func Upload(conn net.Conn, uid int64, roomId int64) {
 	msg := &simple_msg.HeadReq{
 		Cmd:    int32(simple_av.BIG_CMD_SIMPLE_AV),
 		Subcmd: int32(simple_av.SUB_CMD_Upload),
 		Seq:    int32(1),
 	}
 	req := &simple_av.UploadReq{
-		Uid:    88881811,
-		RoomId: 1000,
+		Uid:    uid,
+		RoomId: roomId,
 	}
 	var err error
 	msg.Ex, err = proto.Marshal(req)
@@ -106,15 +108,15 @@ func Upload(conn net.Conn) {
 	conn.Write(pData)
 }
 
-func SendData(conn net.Conn, seq int32, payload []byte) {
+func SendData(conn net.Conn, uid int64, roomId int64, seq int32, payload []byte) {
 	msg := &simple_msg.HeadReq{
 		Cmd:    int32(simple_av.BIG_CMD_SIMPLE_AV),
 		Subcmd: int32(simple_av.SUB_CMD_SendData),
 		Seq:    seq,
 	}
 	req := &simple_av.SendDataReq{
-		Uid:    88881811,
-		RoomId: 1000,
+		Uid:    uid,
+		RoomId: roomId,
 		Data:   []byte(payload),
 	}
 	var err error
@@ -134,7 +136,66 @@ func IntToBytes(n int32) []byte {
 	return bytesBuffer.Bytes()
 }
 
+var pRoomId = flag.Int64("r", 0, "room id")
+var pUid = flag.Int64("u", 0, "uid")
+var pUpload = flag.Int64("a", 0, "anchor")
+
+func TestSlice() {
+	var uidS []uint64
+	for i := 0; i < 100; i += 20 {
+		uidS = AddUidS(uidS, uint64(i))
+	}
+	fmt.Println(uidS)
+}
+
+func AddUidS(uidS []uint64, from uint64) []uint64 {
+	for i := from; i < from+10; i++ {
+		uidS = append(uidS, i)
+	}
+	return uidS
+}
+
+func TestSlice1() {
+	uidS := make([]uint64, 30)
+	for i := 0; i < 30; i++ {
+		AddUidS1(uidS, uint64(i))
+	}
+	fmt.Println(uidS)
+}
+
+func AddUidS1(uidS []uint64, i uint64) {
+	uidS[i] = i
+}
+
+//func init() {
+//	fmt.Println("init func")
+//
+//	flag.Parse()
+//	fmt.Println("other", flag.Args())
+//	uid := *pUid
+//	roomId := *pRoomId
+//	//upload := *pUpload
+//	if uid == 0 || roomId == 0 {
+//		fmt.Println(uid, roomId)
+//		return
+//	}
+//
+//	fmt.Println("init get pararms: ", roomId, uid);
+//}
+
 func main() {
+	flag.Parse()
+	fmt.Println("other", flag.Args())
+	uid := *pUid
+	roomId := *pRoomId
+	upload := *pUpload
+	if uid == 0 || roomId == 0 {
+		fmt.Println(uid, roomId)
+		return
+	}
+
+	fmt.Println("get pararms: ", roomId, uid)
+
 	strIP := "localhost:50000"
 	var conn net.Conn
 	var err error
@@ -150,12 +211,14 @@ func main() {
 
 	go OnReceive(conn)
 
-	JoinRoom(conn)
+	JoinRoom(conn, uid, roomId)
 
 	i := int32(2)
 	for {
 		time.Sleep(time.Millisecond * 1000)
-		//SendData(conn, i, IntToBytes(i))
+		if upload > 0 {
+			SendData(conn, uid, roomId, i, IntToBytes(i))
+		}
 		i++
 	}
 }
