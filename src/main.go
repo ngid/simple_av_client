@@ -13,11 +13,9 @@ import (
 	"fmt"
 )
 
-
-// audience: ./simple_av_client -u 88881811 -r 1000
+// audience: ./simple_av_client -u 252238532 -r 1000
 
 // anchor:  ./simple_av_client -u 88881811 -r 1000 -a 1
-
 
 var pRoomId = flag.Int64("r", 0, "room id")
 var pUid = flag.Int64("u", 0, "uid")

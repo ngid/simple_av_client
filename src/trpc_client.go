@@ -43,6 +43,8 @@ func JoinRoom2(stream simple_msg.SimpleMsg_HeadClient, uid int64, roomId int64) 
 		log.Printf("failed to recv: %v", err)
 	}
 	fmt.Println("join room", headReq, bodyReq, reply)
+
+	HandleTrpcMsg(reply)
 }
 
 func SendData2(stream simple_msg.SimpleMsg_HeadClient, uid int64, roomId int64, seq int32, payload []byte) {
@@ -91,14 +93,59 @@ func StartTRPCClient(uid int64, roomId int64, upload int64) {
 
 	JoinRoom2(stream, uid, roomId)
 
-
-
 	i := int32(2)
 	for {
 		time.Sleep(time.Millisecond * 1000)
 		if upload > 0 {
 			SendData2(stream, uid, roomId, i, IntToBytes(i))
+		} else {
+			req := &simple_msg.HeadReq{}
+			err := stream.RecvMsg(req)
+			if err != nil {
+				log.Println("failed to recv request", err)
+			}
+			HandleTrpcRequest(req)
+			//reply, err := stream.Recv()
+			//if err != nil {
+			//	log.Printf("failed to recv: %v", err)
+			//}
+			//HandleTrpcMsg(reply)
 		}
 		i++
+	}
+}
+
+func HandleTrpcMsg(rsp *simple_msg.HeadRsp) {
+	switch rsp.Subcmd {
+	case int32(simple_av.SUB_CMD_JoinRoom):
+		bodyRsp := &simple_av.JoinRoomRsp{}
+		err := proto.Unmarshal(rsp.GetEx(), bodyRsp)
+		if err != nil {
+		}
+		fmt.Println("recv join rsp", rsp, bodyRsp)
+	case int32(simple_av.SUB_CMD_SendData):
+		bodyRsp := &simple_av.SendDataReq{}
+		err := proto.Unmarshal(rsp.GetEx(), bodyRsp)
+		if err != nil {
+
+		}
+		fmt.Println("recv data ", rsp, bodyRsp)
+
+	case int32(simple_av.SUB_CMD_Upload):
+	case int32(simple_av.SUB_CMD_ExitRoom):
+	default:
+	}
+}
+
+func HandleTrpcRequest(req *simple_msg.HeadReq) {
+	switch req.Subcmd {
+	case int32(simple_av.SUB_CMD_SendData):
+		bodyReq := &simple_av.SendDataReq{}
+		err := proto.Unmarshal(req.GetEx(), bodyReq)
+		if err != nil {
+
+		}
+		fmt.Println("recv data ", req, bodyReq)
+	default:
 	}
 }
